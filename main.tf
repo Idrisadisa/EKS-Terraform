@@ -240,7 +240,7 @@ resource "aws_eks_node_group" "powerdevops" {
     min_size     = 3
   }
 
-  instance_types = ["t3.medium"]
+  instance_types = ["c7i-flex.large"]
 
   remote_access {
     ec2_ssh_key               = var.ssh_key_name
