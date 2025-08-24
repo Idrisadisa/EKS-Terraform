@@ -158,9 +158,10 @@ resource "aws_iam_role_policy_attachment" "powerdevops_cluster_role_policy" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
 }
 
+# CORRECT (optional but fine to keep)
 resource "aws_iam_role_policy_attachment" "powerdevops_cluster_vpc_controller" {
   role       = aws_iam_role.powerdevops_cluster_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_VPCResourceController"
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSVPCResourceController"
 }
 
 resource "aws_iam_role" "powerdevops_node_group_role" {
