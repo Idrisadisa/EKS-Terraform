@@ -1,56 +1,86 @@
+############################################
+# Provider (US East 1)
+############################################
 provider "aws" {
-  region = "ap-south-1"
+  region = "us-east-1"
 }
 
-resource "aws_vpc" "devopsshack_vpc" {
-  cidr_block = "10.0.0.0/16"
+############################################
+# Networking
+############################################
+resource "aws_vpc" "powerdevops_vpc" {
+  cidr_block           = "10.0.0.0/16"
+  enable_dns_support   = true
+  enable_dns_hostnames = true
 
   tags = {
-    Name = "devopsshack-vpc"
+    Name        = "idris-powerdevops-vpc"
+    Project     = "powerdevops"
+    Environment = "dev"
+    Owner       = "Idris Adisa"
+    ManagedBy   = "Terraform"
   }
 }
 
-resource "aws_subnet" "devopsshack_subnet" {
-  count = 2
-  vpc_id                  = aws_vpc.devopsshack_vpc.id
-  cidr_block              = cidrsubnet(aws_vpc.devopsshack_vpc.cidr_block, 8, count.index)
-  availability_zone       = element(["ap-south-1a", "ap-south-1b"], count.index)
+resource "aws_subnet" "powerdevops_subnet" {
+  count                   = 2
+  vpc_id                  = aws_vpc.powerdevops_vpc.id
+  cidr_block              = cidrsubnet(aws_vpc.powerdevops_vpc.cidr_block, 8, count.index)
+  availability_zone       = element(["us-east-1a", "us-east-1b"], count.index)
   map_public_ip_on_launch = true
 
   tags = {
-    Name = "devopsshack-subnet-${count.index}"
+    Name        = "idris-powerdevops-subnet-${count.index}"
+    Project     = "powerdevops"
+    Environment = "dev"
+    Owner       = "Idris Adisa"
+    ManagedBy   = "Terraform"
+    Tier        = "public"
   }
 }
 
-resource "aws_internet_gateway" "devopsshack_igw" {
-  vpc_id = aws_vpc.devopsshack_vpc.id
+resource "aws_internet_gateway" "powerdevops_igw" {
+  vpc_id = aws_vpc.powerdevops_vpc.id
 
   tags = {
-    Name = "devopsshack-igw"
+    Name        = "idris-powerdevops-igw"
+    Project     = "powerdevops"
+    Environment = "dev"
+    Owner       = "Idris Adisa"
+    ManagedBy   = "Terraform"
   }
 }
 
-resource "aws_route_table" "devopsshack_route_table" {
-  vpc_id = aws_vpc.devopsshack_vpc.id
+resource "aws_route_table" "powerdevops_route_table" {
+  vpc_id = aws_vpc.powerdevops_vpc.id
 
   route {
     cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.devopsshack_igw.id
+    gateway_id = aws_internet_gateway.powerdevops_igw.id
   }
 
   tags = {
-    Name = "devopsshack-route-table"
+    Name        = "idris-powerdevops-rtb-public"
+    Project     = "powerdevops"
+    Environment = "dev"
+    Owner       = "Idris Adisa"
+    ManagedBy   = "Terraform"
   }
 }
 
 resource "aws_route_table_association" "a" {
   count          = 2
-  subnet_id      = aws_subnet.devopsshack_subnet[count.index].id
-  route_table_id = aws_route_table.devopsshack_route_table.id
+  subnet_id      = aws_subnet.powerdevops_subnet[count.index].id
+  route_table_id = aws_route_table.powerdevops_route_table.id
 }
 
-resource "aws_security_group" "devopsshack_cluster_sg" {
-  vpc_id = aws_vpc.devopsshack_vpc.id
+############################################
+# Security Groups
+############################################
+resource "aws_security_group" "powerdevops_cluster_sg" {
+  name        = "idris-powerdevops-cluster-sg"
+  description = "Security group for EKS control plane"
+  vpc_id      = aws_vpc.powerdevops_vpc.id
 
   egress {
     from_port   = 0
@@ -60,12 +90,18 @@ resource "aws_security_group" "devopsshack_cluster_sg" {
   }
 
   tags = {
-    Name = "devopsshack-cluster-sg"
+    Name        = "idris-powerdevops-cluster-sg"
+    Project     = "powerdevops"
+    Environment = "dev"
+    Owner       = "Idris Adisa"
+    ManagedBy   = "Terraform"
   }
 }
 
-resource "aws_security_group" "devopsshack_node_sg" {
-  vpc_id = aws_vpc.devopsshack_vpc.id
+resource "aws_security_group" "powerdevops_node_sg" {
+  name        = "idris-powerdevops-node-sg"
+  description = "Security group for EKS worker nodes"
+  vpc_id      = aws_vpc.powerdevops_vpc.id
 
   ingress {
     from_port   = 0
@@ -82,25 +118,120 @@ resource "aws_security_group" "devopsshack_node_sg" {
   }
 
   tags = {
-    Name = "devopsshack-node-sg"
+    Name        = "idris-powerdevops-node-sg"
+    Project     = "powerdevops"
+    Environment = "dev"
+    Owner       = "Idris Adisa"
+    ManagedBy   = "Terraform"
   }
 }
 
-resource "aws_eks_cluster" "devopsshack" {
-  name     = "devopsshack-cluster"
-  role_arn = aws_iam_role.devopsshack_cluster_role.arn
+############################################
+# IAM for EKS
+############################################
+resource "aws_iam_role" "powerdevops_cluster_role" {
+  name = "idris-powerdevops-cluster-role"
+
+  assume_role_policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": { "Service": "eks.amazonaws.com" },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+
+  tags = {
+    Project     = "powerdevops"
+    Environment = "dev"
+    Owner       = "Idris Adisa"
+    ManagedBy   = "Terraform"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "powerdevops_cluster_role_policy" {
+  role       = aws_iam_role.powerdevops_cluster_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+}
+
+resource "aws_iam_role_policy_attachment" "powerdevops_cluster_vpc_controller" {
+  role       = aws_iam_role.powerdevops_cluster_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_VPCResourceController"
+}
+
+resource "aws_iam_role" "powerdevops_node_group_role" {
+  name = "idris-powerdevops-node-group-role"
+
+  assume_role_policy = <<EOF
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": { "Service": "ec2.amazonaws.com" },
+      "Action": "sts:AssumeRole"
+    }
+  ]
+}
+EOF
+
+  tags = {
+    Project     = "powerdevops"
+    Environment = "dev"
+    Owner       = "Idris Adisa"
+    ManagedBy   = "Terraform"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "powerdevops_node_group_role_policy" {
+  role       = aws_iam_role.powerdevops_node_group_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+}
+
+resource "aws_iam_role_policy_attachment" "powerdevops_node_group_cni_policy" {
+  role       = aws_iam_role.powerdevops_node_group_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+}
+
+resource "aws_iam_role_policy_attachment" "powerdevops_node_group_registry_policy" {
+  role       = aws_iam_role.powerdevops_node_group_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+}
+
+############################################
+# EKS Cluster & Node Group
+############################################
+resource "aws_eks_cluster" "powerdevops" {
+  name     = "idris-powerdevops-cluster"
+  role_arn = aws_iam_role.powerdevops_cluster_role.arn
 
   vpc_config {
-    subnet_ids         = aws_subnet.devopsshack_subnet[*].id
-    security_group_ids = [aws_security_group.devopsshack_cluster_sg.id]
+    subnet_ids         = aws_subnet.powerdevops_subnet[*].id
+    security_group_ids = [aws_security_group.powerdevops_cluster_sg.id]
   }
+
+  tags = {
+    Project     = "powerdevops"
+    Environment = "dev"
+    Owner       = "Idris Adisa"
+    ManagedBy   = "Terraform"
+  }
+
+  depends_on = [
+    aws_iam_role_policy_attachment.powerdevops_cluster_role_policy,
+    aws_iam_role_policy_attachment.powerdevops_cluster_vpc_controller
+  ]
 }
 
-resource "aws_eks_node_group" "devopsshack" {
-  cluster_name    = aws_eks_cluster.devopsshack.name
-  node_group_name = "devopsshack-node-group"
-  node_role_arn   = aws_iam_role.devopsshack_node_group_role.arn
-  subnet_ids      = aws_subnet.devopsshack_subnet[*].id
+resource "aws_eks_node_group" "powerdevops" {
+  cluster_name    = aws_eks_cluster.powerdevops.name
+  node_group_name = "idris-powerdevops-node-group"
+  node_role_arn   = aws_iam_role.powerdevops_node_group_role.arn
+  subnet_ids      = aws_subnet.powerdevops_subnet[*].id
 
   scaling_config {
     desired_size = 3
@@ -108,68 +239,23 @@ resource "aws_eks_node_group" "devopsshack" {
     min_size     = 3
   }
 
-  instance_types = ["t2.medium"]
+  instance_types = ["t3.medium"]
 
   remote_access {
-    ec2_ssh_key = var.ssh_key_name
-    source_security_group_ids = [aws_security_group.devopsshack_node_sg.id]
+    ec2_ssh_key               = var.ssh_key_name
+    source_security_group_ids = [aws_security_group.powerdevops_node_sg.id]
   }
-}
 
-resource "aws_iam_role" "devopsshack_cluster_role" {
-  name = "devopsshack-cluster-role"
+  tags = {
+    Project     = "powerdevops"
+    Environment = "dev"
+    Owner       = "Idris Adisa"
+    ManagedBy   = "Terraform"
+  }
 
-  assume_role_policy = <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "eks.amazonaws.com"
-      },
-      "Action": "sts:AssumeRole"
-    }
+  depends_on = [
+    aws_iam_role_policy_attachment.powerdevops_node_group_role_policy,
+    aws_iam_role_policy_attachment.powerdevops_node_group_cni_policy,
+    aws_iam_role_policy_attachment.powerdevops_node_group_registry_policy
   ]
-}
-EOF
-}
-
-resource "aws_iam_role_policy_attachment" "devopsshack_cluster_role_policy" {
-  role       = aws_iam_role.devopsshack_cluster_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
-}
-
-resource "aws_iam_role" "devopsshack_node_group_role" {
-  name = "devopsshack-node-group-role"
-
-  assume_role_policy = <<EOF
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Service": "ec2.amazonaws.com"
-      },
-      "Action": "sts:AssumeRole"
-    }
-  ]
-}
-EOF
-}
-
-resource "aws_iam_role_policy_attachment" "devopsshack_node_group_role_policy" {
-  role       = aws_iam_role.devopsshack_node_group_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
-}
-
-resource "aws_iam_role_policy_attachment" "devopsshack_node_group_cni_policy" {
-  role       = aws_iam_role.devopsshack_node_group_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
-}
-
-resource "aws_iam_role_policy_attachment" "devopsshack_node_group_registry_policy" {
-  role       = aws_iam_role.devopsshack_node_group_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
