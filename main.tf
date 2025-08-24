@@ -235,12 +235,12 @@ resource "aws_eks_node_group" "powerdevops" {
   subnet_ids      = aws_subnet.powerdevops_subnet[*].id
 
   scaling_config {
-    desired_size = 1
-    max_size     = 1
-    min_size     = 1
+    desired_size = 3
+    max_size     = 3
+    min_size     = 3
   }
 
-  instance_types = ["t3.micro"]
+  instance_types = ["t2.medium"]
   
 
   remote_access {
